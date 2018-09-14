@@ -1,0 +1,449 @@
+ 20
+1
+Lectures IM 315 Web Development III
+
+
+
+
+
+
+ 
+Message List
+
+Mr. M. [7:07 AM]
+Practice with VS Code
+mrmtabris.js 
+const tools = require('./tools')
+const moment = require('moment')
+moment().format()
+​
+const {AlertDialog, app, Button, CheckBox, fs, ImageView, ProgressBar, ScrollView, Switch, Tab, TabFolder, TextInput, TextView, ui} = require('tabris')
+​
+// var todos = require('./todos.json') // default
+var todos
+​
+const APP_NAME = 'Just 5 Things To Do'
+const APP_VERSION = '1.00'
+console.log('xxxx info:\n' + device.platform) // "Android", "iOS", or "windows"
+​
+const AUTO_SAVE_INTERVAL = 10000
+​
+ui.statusBar.theme = 'dark'
+ui.statusBar.background = '#000'
+const TODO_TEXTCOLOR = 'rgba(0, 0, 0, 1)'
+const TODO_TEXTCOLOR_DIM = 'rgba(200, 200, 200, 1)'
+const AGE_COLOR_1 = '#28a745' // <= 22 hours
+const AGE_COLOR_2 = '#ffc107' // >22 but < 35
+const AGE_COLOR_3 = '#dc3545' // >= 35
+const HIGHLIGHT_COLOR = '#FFFDE7'
+const RED = '#f00'
+​
+const TODO_INTIAL_FONT = '16px'
+const TODO_MEDIUM_FONT = 'bold 26px'
+const TODO_BIG_FONT = 'bold 36px'
+​
+const TODO_FILE = fs.filesDir + '/todos.json'
+const NOTES_FILE = fs.filesDir + '/notes.txt'
+const HISTORY_FILE = fs.filesDir + '/history.txt'
+const HISTORY_MAX_FILE_SIZE = 20
+​
+const TODO_OFFSET_1 = 60
+const TODO_OFFSET_2 = 70
+const DATE_DISPLAY_WIDTH = 120
+const RIGHT_MARGIN = 10
+​
+const TODO_UP_ARROW = ' △'
+​
+const FIRST_RUN_KEY = 'firstRun'
+function isFirstRun () {
+ let value = localStorage.getItem(FIRST_RUN_KEY)
+ // first run, write some files... etc.
+ if (value === null) {
+  console.log('value from firstRun true cond: NULL ' + value)
+  localStorage.setItem(FIRST_RUN_KEY, 'no')
+  return true
+ }
+ // NOT first run, read some files
+ console.log('value from firstRun false cond: ' + value)
+ return false
+}
+​
+if (isFirstRun()) {
+ todos = require('./todos.json') // default
+ fs.writeFile(NOTES_FILE, 'notes initial', 'utf-8')
+  .then(() => console.log('file written:', NOTES_FILE))
+  .catch(err => console.error(err))
+​
+ fs.writeFile(HISTORY_FILE, 'history initial', 'utf-8')
+  .then(() => console.log('file written:', HISTORY_FILE))
+  .catch(err => console.error(err))
+​
+ main()
+} else {
+ fs.readFile(TODO_FILE, 'utf-8')
+  .then(text => {
+   // console.log('readJSON: file read:')
+   // console.log(JSON.parse(text))
+   todos = JSON.parse(text)
+   main()
+  // activityIndicator.visible = false
+  })
+  .catch(err => console.error(err))
+}
+​
+function main () {
+ // ??? maybe remove this , put in firstRun func.
+ function onStartUp () {
+  // console.log('onStartUp')
+ // swtClearToDo.checked = tools.getItem('swtClearToDo')
+  swtClearToDo.checked = tools.getItem('swtClearToDo')
+ }
+​
+ setInterval(autoSave, AUTO_SAVE_INTERVAL)
+ /* - - - - - - - - - - - - - layout  - - - - - - - - - - - - - - - - - - - */
+ let txvTitle = new TextView({
+  id: 'txvTitle',
+  left: 0, right: 0, top: 3,
+  height: 40,
+  text: APP_NAME,
+  font: 'bold 24px',
+  textColor: '#333',
+  background: '#eee',
+  alignment: 'center'
+ }).appendTo(ui.contentView)
+​
+ let progressBar = new ProgressBar({
+  left: 0, right: 0, top: 'prev()',
+  maximum: 100,
+  selection: 100,
+  tintColor: 'blue'
+ }).appendTo(ui.contentView)
+​
+ let tabFolder = new TabFolder({
+  left: 0, top: 'prev()', right: 0, bottom: 0,
+  paging: true
+ }).appendTo(ui.contentView)
+​
+ let tabHome = createTab('ToDo\'s', 'src/images/if_done-01_186405.png')
+ let tabNotes = createTab('Notes', 'src/images/noun_note_585381.png')
+ let tabHistory = createTab('History', 'src/images/if_ic_history_48px_352426.png')
+ let tabSettings = createTab('Settings', 'src/images/noun_Settings_936835.png')
+​
+ function createTab (title, image) {
+  let tab = new Tab({
+   title: title,
+   image: { src: image, scale: 2 }
+  }).appendTo(tabFolder)
+  return tab
+ }
+​
+ let scrNotes = new ScrollView({
+  left: 10, right: 10, top: 10, bottom: 10
+ }).appendTo(tabNotes)
+​
+ let txvNotes = new TextView({
+  left: 10, top: 5,
+  alignment: 'left',
+  text: tabNotes.title,
+  font: 'bold 30px'
+ }).appendTo(scrNotes)
+​
+ let txiNotes = new TextInput({
+  left: 10, right: 5, top: 'prev() 10',
+  alignment: 'left',
+  type: 'multiline',
+  autoCorrect: true,
+  borderColor: '#000',
+  fillColor: HIGHLIGHT_COLOR, // iOS only
+  text: 'Notes initial.'
+ }).appendTo(scrNotes)
+​
+ let scrHistory = new ScrollView({
+  left: 10, right: 10, top: 10, bottom: 10
+ }).appendTo(tabHistory)
+​
+ let txvHistory = new TextView({
+  left: 10, top: 5,
+  alignment: 'left',
+  text: tabHistory.title + '(recent)',
+  font: 'bold 30px'
+ }).appendTo(scrHistory)
+​
+ let btnClearHistory = new Button({
+  centerX: 0, top: 'prev() 10',
+  text: 'Clear History'
+ }).on('select', () => {
+  new AlertDialog({
+   title: 'Clear History',
+   message: 'Are you sure you want to \n CLEAR To Do History?',
+   buttons: {
+    ok: 'OK',
+    cancel: 'Cancel'
+   }
+  }).on({
+   closeOk: () => txiHistory.text = ''
+  }).open()
+ }).appendTo(scrHistory)
+​
+ let txiHistory = new TextInput({
+  left: 5, right: 5, top: 'prev() 10',
+  alignment: 'left',
+  type: 'multiline',
+  autoCorrect: true,
+  borderColor: RED,
+  text: 'history initial'
+ }).appendTo(scrHistory)
+​
+ let txvSettings = new TextView({
+  left: 10, top: 5,
+  alignment: 'left',
+  text: tabSettings.title,
+  font: 'bold 30px'
+ }).appendTo(tabSettings)
+​
+ let swtClearToDo = new Switch({
+  right: 10, top: 'prev() 20',
+  id: 'switch',
+  checked: true
+ }).on('checkedChanged', () => {
+  tools.setItem('swtClearToDo', swtClearToDo.checked)
+ }).appendTo(tabSettings)
+​
+ new TextView({
+  left: 10, top: ['#switch', -30], right: 80,
+  text: 'If To Do item is checked, automatically erase old item when entering a new item:'
+ }).appendTo(tabSettings)
+​
+ let btnResetApp = new Button({
+  centerX: 0, top: 'prev() 20',
+  text: 'Reset app'
+ }).on('select', () => {
+  new AlertDialog({
+   title: 'Are you sure you want to \n RESET app?',
+   message: 'All To Do items, notes,\n and history will be erased',
+   buttons: {
+    ok: 'OK',
+    cancel: 'Cancel'
+   }
+  }).on({
+   closeOk: () => {
+    clearAllKeyPairs()
+    removeFile(NOTES_FILE)
+    removeFile(HISTORY_FILE)
+    removeFile(TODO_FILE)
+    app.reload()
+   }
+​
+  }).open()
+ }).appendTo(tabSettings)
+​
+ let txvAbout = new TextView({
+  left: 10, top: 'prev() 20',
+  alignment: 'left',
+  text: 'About',
+  font: 'bold 30px'
+ }).appendTo(tabSettings)
+​
+ let imgLogo = new ImageView({
+  centerX: 0, top: 'prev() 10', width: 64, height: 64,
+  image: 'src/images/logo.png'
+ }).on('tap', () => app.launch('http://just5thingstodo.com'))
+  .appendTo(tabSettings)
+​
+ let txvLink = new TextView({
+  left: 10, right: 10, top: 'prev() 10',
+  alignment: 'center',
+  highlightOnTouch: true,
+  textColor: 'blue',
+  text: 'www.just5thingstodo.com'
+ }).on('tap', () => app.launch('http://just5thingstodo.com'))
+  .appendTo(tabSettings)
+​
+ let txvInfo = new TextView({
+  left: 10, right: 10, top: 'prev() 10',
+  alignment: 'center',
+  font: '13px',
+  text: 'version: ' + APP_VERSION + '\n\n© 2018 R. McCormack \n all rights reserved'
+ }).appendTo(tabSettings)
+​
+ let scrToDo = new ScrollView({
+  left: 10, right: 10, top: 10, bottom: 10
+ }).appendTo(tabHome)
+​
+ let butReset = new Button({
+  left: 10, top: 10,
+  text: 'Button'
+ })
+​
+ todos.forEach((todo, index) => {
+  if (index === 0) {
+   topPosition = ['#txvTitle', 10]
+  } else {
+   topPosition = ['#txiToDo' + (index - 1), 30]
+  }
+​
+  let chkToDo = new CheckBox({
+   id: 'chkToDo' + index,
+   class: 'checkbox',
+   text: (index + 1),
+   checked: todo.checked,
+   left: 5, right: 10, top: topPosition,
+   font: '25px',
+   textColor: TODO_TEXTCOLOR,
+   highlightOnTouch: true
+  }).on('checkedChanged', event => {
+   if (event.target.checked) {
+    todo.checked = true
+    event.target.textColor = TODO_TEXTCOLOR_DIM
+    txiToDo.textColor = TODO_TEXTCOLOR_DIM
+    txvTimeStamp.textColor = TODO_TEXTCOLOR_DIM
+    txiToDo.left = TODO_OFFSET_2
+    txiToDo.font = TODO_INTIAL_FONT
+    txiToDo.elevation = 0
+    let historyDate = moment(todo.dateCreated).format('MMM DD, YYYY hh:mm a')
+    txiHistory.text = historyDate + ': ' + '\n ' + todo.description + '\n' + txiHistory.text
+   } else {
+    todo.checked = false
+    event.target.textColor = TODO_TEXTCOLOR
+    txiToDo.textColor = TODO_TEXTCOLOR
+    txiToDo.left = TODO_OFFSET_1
+    ageColor(txvTimeStamp, todo.dateCreated)
+   }
+​
+   if (numChecked(todos) === 5) {
+    console.log('Congratulations: YOU GOT 5 done')
+    tabHome.find('.cal-display').set('visible', false)
+    imgReward.visible = true
+    var num = Math.floor(Math.random() * 3 + 1)
+    imgReward.image = 'src/images/reward' + num + '.png'
+   } else {
+    tabHome.find('.cal-display').set('visible', true)
+    imgReward.visible = false
+   }
+  }
+  ).appendTo(scrToDo)
+​
+  let txiToDo = new TextInput({
+   id: 'txiToDo' + (index),
+   class: 'check-text',
+   left: TODO_OFFSET_1, right: RIGHT_MARGIN, top: topPosition,
+   text: todo.description,
+   textColor: TODO_TEXTCOLOR,
+   alignment: 'left',
+   type: 'multiline',
+   autoCorrect: true,
+   font: TODO_INTIAL_FONT
+  }).appendTo(scrToDo)
+​
+  txiToDo.on('focus', () => {
+   if (chkToDo.checked) {
+    chkToDo.checked = false
+    if (swtClearToDo.checked) {
+     txiToDo.text = ''
+    }
+    txiToDo.message = 'Enter NEW To Do item.' // docs: no work on iOS when multiline - android OK
+    let dd = new Date()
+    var d = dd.toISOString()
+    console.log('DATE CHANGED: ' + d)
+    todo.dateCreated = d
+    txvTimeStamp.text = moment(todo.dateCreated).fromNow() + TODO_UP_ARROW
+   }
+   txiToDo.borderColor = RED
+   chkToDo.textColor = RED
+  })
+​
+  txiToDo.on('blur', () => {
+   txiToDo.borderColor = '#000'
+   chkToDo.textColor = '#000'
+  })
+​
+  txiToDo.on('textChanged', () => {
+   txiToDo.borderColor = '#0f0'
+   todo.description = txiToDo.text
+   var d = new Date()
+   var n = d.toISOString()
+   todo.dateCreated = n
+   txvTimeStamp.text = moment(todo.dateCreated).fromNow() + TODO_UP_ARROW
+   ageColor(txvTimeStamp, todo.dateCreated)
+  })
+​
+  let txvTimeStamp = new TextView({
+   id: 'txvTimeStamp' + (index),
+   right: RIGHT_MARGIN, top: 'prev() 5', height: 24,
+   text: moment(todo.dateCreated).fromNow() + TODO_UP_ARROW,
+   textColor: TODO_TEXTCOLOR,
+   font: '13px'
+  }).on('tap', () => {
+   growFont(txiToDo, todo)
+  }).appendTo(scrToDo)
+​
+  ageColor(txvTimeStamp, todo.dateCreated)
+​
+  switch (todo.importance) {
+   case 0:
+    txiToDo.font = TODO_INTIAL_FONT
+    txiToDo.elevation = 0
+    break
+   case 1:
+    txiToDo.font = TODO_MEDIUM_FONT
+    txiToDo.elevation = 8
+    break
+   case 2:
+    txiToDo.font = TODO_BIG_FONT
+    txiToDo.elevation = 16
+    break
+   default:
+    txiToDo.font = TODO_INTIAL_FONT
+  }
+​
+  if (chkToDo.checked) {
+   chkToDo.textColor = TODO_TEXTCOLOR_DIM
+   txiToDo.textColor = TODO_TEXTCOLOR_DIM
+   txvTimeStamp.textColor = TODO_TEXTCOLOR_DIM
+   txiToDo.left = TODO_OFFSET_2
+   txiToDo.font = TODO_INTIAL_FONT
+   txiToDo.elevation = 0
+   let historyDate = moment(todo.dateCreated).format('MMM DD, YYYY hh:mm a')
+   txiHistory.text = historyDate + ': ' + '\n ' + todo.description + '\n' + txiHistory.text
+  } else {
+   chkToDo.textColor = TODO_TEXTCOLOR
+   txiToDo.textColor = TODO_TEXTCOLOR
+   txiToDo.left = TODO_OFFSET_1
+   ageColor(txvTimeStamp, todo.dateCreated)
+  }
+ }) // end forEach - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+​
+ onStartUp()
+​
+ let imgReward = new ImageView({
+  centerX: 0, top: 'prev() 10', width: 192, height: 129,
+  id: 'imgReward',
+  image: 'src/images/reward1.png',
+  visible: false
+ }).appendTo(scrToDo)
+​
+ let txvDateDay = new TextView({
+  centerX: 0, top: ['#txiToDo4', 40], width: DATE_DISPLAY_WIDTH, height: 30,
+  class: 'cal-display',
+  alignment: 'center',
+  text: moment().format('dddd'),
+  textColor: 'white',
+  background: 'red',
+  font: 'bold 18px'
+ }).appendTo(scrToDo)
+​
+ let txvDateDate = new TextView({
+  centerX: 0, top: 'prev()', widt...
+Collapse 
+
+Practice with VS Code
+mrmbootstrap.html 
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+
+Groot (Amy) [8:33 AM]
+joined #im315-lectures along with 2 others.
